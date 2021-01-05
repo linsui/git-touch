@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:git_touch/graphql/gh.dart';
+import 'package:git_touch/graphql/gh_user.data.gql.dart';
+import 'package:git_touch/graphql/gh_user.req.gql.dart';
 import 'package:git_touch/models/theme.dart';
 import 'package:git_touch/scaffolds/refresh_stateful.dart';
 import 'package:git_touch/utils/utils.dart';
@@ -214,7 +215,8 @@ class GhUserScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOrganization(BuildContext context, GhUserOrganization p) {
+  Widget _buildOrganization(
+      BuildContext context, GGhUserData_repositoryOwner__asOrganization p) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -294,12 +296,13 @@ class GhUserScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthModel>(context);
-    return RefreshStatefulScaffold<GhUserRepositoryOwner>(
+    return RefreshStatefulScaffold<GGhUserData>(
       fetch: () async {
-        final data = await auth.gqlClient.execute(GhUserQuery(
-            variables:
-                GhUserArguments(login: login ?? '', isViewer: isViewer)));
-        return isViewer ? data.data.viewer : data.data.repositoryOwner;
+        final req = GGhUserReq((b) => b
+          ..vars.login = login ?? ''
+          ..vars.isViewer = isViewer);
+        final s = await auth.gqlClient.request(req).single;
+        return s.data;
       },
       title: AppBarTitle(isViewer ? 'Me' : login),
       action: isViewer
@@ -311,19 +314,20 @@ class GhUserScreen extends StatelessWidget {
       actionBuilder: isViewer
           ? null
           : (payload, setState) {
-              switch (payload.resolveType) {
+              switch (payload.G__typename) {
                 case 'User':
-                  final user = payload as GhUserUser;
+                  final user = payload as GGhUserData_repositoryOwner__asUser;
                   return ActionButton(
                     title: 'User Actions',
-                    items: [...ActionItem.getUrlActions(user.url)],
+                    items: [...ActionItem.getUrlActions(user.url.value)],
                   );
                 case 'Organization':
-                  final organization = payload as GhUserOrganization;
+                  final organization =
+                      payload as GGhUserData_repositoryOwner__asOrganization;
                   return ActionButton(
                     title: 'Organization Actions',
                     items: [
-                      ...ActionItem.getUrlActions(organization.url),
+                      ...ActionItem.getUrlActions(organization.url.value),
                     ],
                   );
                 default:
@@ -332,13 +336,16 @@ class GhUserScreen extends StatelessWidget {
             },
       bodyBuilder: (payload, setState) {
         if (isViewer) {
-          return _buildUser(context, payload as GhUserUser, setState);
+          return _buildUser(context,
+              payload as GGhUserData_repositoryOwner__asUser, setState);
         }
-        switch (payload.resolveType) {
+        switch (payload.G__typename) {
           case 'User':
-            return _buildUser(context, payload as GhUserUser, setState);
+            return _buildUser(context,
+                payload as GGhUserData_repositoryOwner__asUser, setState);
           case 'Organization':
-            return _buildOrganization(context, payload as GhUserOrganization);
+            return _buildOrganization(context,
+                payload as GGhUserData_repositoryOwner__asOrganization);
           default:
             return null;
         }
